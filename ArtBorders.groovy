@@ -5,6 +5,7 @@ import eu.mihosoft.vrl.v3d.Transform
 import eu.mihosoft.vrl.v3d.svg.SVGExporter
 import eu.mihosoft.vrl.v3d.Polygon
 import eu.mihosoft.vrl.v3d.Slice
+import eu.mihosoft.vrl.v3d.Text3d
 
 def name
 def piece_width
@@ -19,7 +20,7 @@ if(args==null){
 	border_width = 7
 	border_thickness = 4
 	do_rabbet = false
-	CSG borders_rabbet_false, borders_rabbet_true
+	CSG borders_rabbet_false, borders_rabbet_true, backboards
 	ArrayList<Object> borders_rabbet_false_params = new ArrayList<Object>()
 	borders_rabbet_false_params.add(name)
 	borders_rabbet_false_params.add(piece_width)
@@ -40,23 +41,11 @@ if(args==null){
 	borders_rabbet_true_params.add(border_width)
 	borders_rabbet_true_params.add(border_thickness)
 	borders_rabbet_true_params.add(do_rabbet)
-	borders_rabbet_true =  (CSG)ScriptingEngine.gitScriptRun(
+	(borders_rabbet_true, backboards) =  ScriptingEngine.gitScriptRun(
 		"https://github.com/JansenSmith/ArtBorders.git", // git location of the library
 		  "ArtBorders.groovy" , // file to load
 		  borders_rabbet_true_params // send the factory the name param
 	)//.movex(10).movey(10)
-		
-	CSG cutout = new Cube(piece_width, piece_height, border_thickness).toCSG()
-					.toXMin()
-					.toYMin()
-					.toZMin()
-	CSG ziggurat = borders_rabbet_true.union(cutout).union(cutout.movez(cutout.totalZ/2))
-	ziggurat = ziggurat.addSlicePlane(new Transform().movez(ziggurat.totalZ - 0.1))
-					.addSlicePlane(new Transform().movez(0.1).movey(ziggurat.totalY + 10))
-					.addSlicePlane(new Transform().movez(ziggurat.totalZ/2).movey(2*(ziggurat.totalY + 10)))
-	ziggurat = ziggurat.addExportFormat("svg")
-	
-	
 	
 	borders_rabbet_false = borders_rabbet_false.setColor(javafx.scene.paint.Color.DARKGRAY)
 		.setName(name+"_base")
@@ -77,19 +66,18 @@ if(args==null){
 					//.toZMin()//move it down to the flat surface
 		})
 	
-	ziggurat = ziggurat.setColor(javafx.scene.paint.Color.MAGENTA)
-		.setName(name+"_ziggurat")
-//		.addAssemblyStep(0, new Transform())
-//		.setManufacturing({ toMfg ->
-//			return toMfg
-//					//.rotx(180)// fix the orientation
-//					//.toZMin()//move it down to the flat surface
-//		})
-		//.addSlicePlane(new Transform().movez(-ziggurat.totalZ+0.1))
+	backboards = backboards.setColor(javafx.scene.paint.Color.MAGENTA)
+		.setName(name+"_backboards")
+		.addAssemblyStep(0, new Transform())
+		.setManufacturing({ toMfg ->
+			return toMfg
+					//.rotx(180)// fix the orientation
+					//.toZMin()//move it down to the flat surface
+		})
 	
 	printSingleExample(piece_width, piece_height)
 	//ret = [borders_rabbet_true.movez(-border_thickness/2-0.1+10)]
-	ret = ziggurat//.roty(45)//.movez(-ziggurat.totalZ+0.1)
+	ret = [borders_rabbet_true, backboards]//.roty(45)//.movez(-ziggurat.totalZ+0.1)
 	return ret
 } else if (args.size() >= 5 && args.get(5)) {
 	name = args.get(0)
@@ -135,7 +123,37 @@ if(args==null){
 		  border_external_params // send the factory the name param
 	)
 	border = border_internal.union(border_external)
-	ret = border
+	
+	CSG cutout = new Cube(piece_width, piece_height, border_thickness).toCSG()
+		.toXMin()
+		.toYMin()
+		.toZMin()
+	CSG ziggurat = border.union(cutout).union(cutout.movez(cutout.totalZ/2))
+	def backboard = calculateBackboardSize(piece_width, piece_height)
+	CSG backboards = new Cube(backboard.x, backboard.y, ziggurat.totalZ).toCSG()
+				.toXMin().toYMin().toZMin()
+	backboards = backboards.move(ziggurat.centerX-backboards.centerX, ziggurat.centerX-backboards.centerX,0)
+				//.move(59*0.999,59*0.999,0)
+				.difference(ziggurat)
+	backboards = backboards.rotz(180).toXMin().toYMin()
+	// add annotations
+	backboards = backboards.union(new Text3d("back board").toCSG().toZMax())
+				.union(new Text3d("mid board").toCSG().toZMax().movez(-1))
+				.union(new Text3d("front board").toCSG().toZMax().movez(-2))
+				.union(new Text3d("mat").toCSG().toZMax().movez(-3))
+	def ann_offset = -3
+	def kerf_offset = 3
+	backboards = backboards.addSlicePlane(new Transform().movez(ziggurat.totalZ/2))               // back board
+		.addSlicePlane(new Transform().movex(ann_offset).movey(ann_offset).movez(-0.1)) // back board annotation
+		.addSlicePlane(new Transform().movez(0.1).movey(-backboards.totalY - kerf_offset))       // mid board
+		.addSlicePlane(new Transform().movex(ann_offset).movey(ann_offset).movez(-1.1).movey(-backboards.totalY - kerf_offset)) // mid board annotation
+		.addSlicePlane(new Transform().movez(ziggurat.totalZ/2).movey(-2*(backboards.totalY + kerf_offset)))       // front board
+		.addSlicePlane(new Transform().movex(ann_offset).movey(ann_offset).movez(-2.1).movey(-2*(backboards.totalY + kerf_offset))) // front board annotation
+		.addSlicePlane(new Transform().movez(ziggurat.totalZ - 0.1).movey(-3*(backboards.totalY + kerf_offset))) //mat
+		.addSlicePlane(new Transform().movex(ann_offset).movey(ann_offset).movez(-3.1).movey(-3*(backboards.totalY + kerf_offset)))                   // mat annotation
+	backboards = backboards.addExportFormat("svg")
+	
+	ret = [border, backboards]
 	return ret //[ret, cutout]
 } else {
 	name = args.get(0)
@@ -198,8 +216,8 @@ return ret
 def calculateBackboardSize(double piece_width, double piece_height) {
 	
 	// Frame parameters (all in mm)
-	def frame_width = 20.0           // Frame molding width on each side
-	def cutting_margin = 6.0         // Laser cutting margin on each side
+	def frame_width = 0           // Frame molding width on each side
+	def cutting_margin = 0         // Laser cutting margin on each side
 	
 	// Mat border calculation - dynamic based on artwork size
 	def base_mat_border = 50.0       // Minimum mat border
@@ -208,7 +226,7 @@ def calculateBackboardSize(double piece_width, double piece_height) {
 	
 	// Optional: bottom-weighted mat (traditional framing)
 	def mat_top = mat_border
-	def mat_bottom = mat_border * 1.15  // 15% larger bottom border
+	def mat_bottom = mat_border * 1.20  // 20% larger bottom border
 	def mat_left = mat_border
 	def mat_right = mat_border
 	
