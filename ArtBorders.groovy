@@ -103,7 +103,7 @@ if(args==null){
 	border_internal_params.add(border_internal_width)
 	border_internal_params.add(border_internal_thickness)
 	border_internal_params.add(do_rabbet)
-	border_internal =  (CSG)ScriptingEngine.gitScriptRun(
+	(border_internal, _) = ScriptingEngine.gitScriptRun(
 		"https://github.com/JansenSmith/ArtBorders.git", // git location of the library
 		  "ArtBorders.groovy" , // file to load
 		  border_internal_params // send the factory the name param
@@ -117,7 +117,7 @@ if(args==null){
 	border_external_params.add(border_external_width)
 	border_external_params.add(border_external_thickness)
 	border_external_params.add(do_rabbet)
-	border_external =  (CSG)ScriptingEngine.gitScriptRun(
+	(border_external, _) = ScriptingEngine.gitScriptRun(
 		"https://github.com/JansenSmith/ArtBorders.git", // git location of the library
 		  "ArtBorders.groovy" , // file to load
 		  border_external_params // send the factory the name param
@@ -204,8 +204,8 @@ CSG cutout = new Cube(width, height, border_thickness).toCSG()
 borders = borders.difference(cutout)
 
 CSG ret = borders
-		
-return ret
+
+return [ret, null] // no rabbet: return [border, null] to match rabbeted return signature [border, backboards]
 
 /**
  * Calculates reasonable backboard dimensions for framing
