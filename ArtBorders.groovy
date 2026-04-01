@@ -152,7 +152,9 @@ if(args==null){
 		.addSlicePlane(new Transform().movez(ziggurat.totalZ - 0.1).movey(-3*(backboards.totalY + kerf_offset))) //mat
 		.addSlicePlane(new Transform().movex(ann_offset).movey(ann_offset).movez(-3.1).movey(-3*(backboards.totalY + kerf_offset)))                   // mat annotation
 	backboards = backboards.addExportFormat("svg")
-	
+				.setName(name+"_mount")
+				.setIsWireFrame(true)
+
 	ret = [border, backboards]
 	return ret //[ret, cutout]
 } else {
